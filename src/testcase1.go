@@ -21,11 +21,7 @@ func testcase1() {
 	ht.Insert("garrison")      // 23 -> 28
 	ht.Insert("lidless")       // 22 -> 29
 
-	fmt.Println("----------------------------------------------------")
-	fmt.Println("Original hash table")
-	fmt.Println("----------------------------------------------------")
-	ht.Dump()
-	fmt.Println("----------------------------------------------------")
+	dumper(ht, "Original hash table")
 
 	fmt.Println("Do some find() and remove() operations...")
 
@@ -40,19 +36,11 @@ func testcase1() {
 	testFind(ht, "garrison")
 	testFind(ht, "lidless")
 
-	fmt.Println("----------------------------------------------------")
-	fmt.Println("Hash table after finds and removes")
-	fmt.Println("----------------------------------------------------")
-	ht.Dump()
-	fmt.Println("----------------------------------------------------")
+	dumper(ht, "Hash table after finds and removes")
 
 	fmt.Println("Next insert should reuse DELETED slots...")
 
 	ht.Insert("undying") // 25 -> 28
 
-	fmt.Println("----------------------------------------------------")
-	fmt.Println("Final hash table")
-	fmt.Println("----------------------------------------------------")
-	ht.Dump()
-	fmt.Println("----------------------------------------------------")
+	dumper(ht, "Final hash table")
 }

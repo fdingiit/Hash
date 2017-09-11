@@ -2,6 +2,14 @@ package main
 
 import "fmt"
 
+func dumper(h *Hash, str string) {
+	fmt.Println("----------------------------------------------------")
+	fmt.Println(str)
+	fmt.Println("----------------------------------------------------")
+	h.Dump()
+	fmt.Println("----------------------------------------------------")
+}
+
 func testFind(h *Hash, str string) {
 	var ok bool
 	var err error

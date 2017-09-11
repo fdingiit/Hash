@@ -42,30 +42,18 @@ func testcase2() {
 	ht.Insert("garrison")      // 23 -> 28
 	ht.Insert("lidless")       // 22 -> 29
 
-	fmt.Println("----------------------------------------------------")
-	fmt.Println("Original hash table")
-	fmt.Println("----------------------------------------------------")
-	ht.Dump()
-	fmt.Println("----------------------------------------------------")
+	dumper(ht, "Original hash table")
 
 	fmt.Println("Inserting \"eye\" should trigger rehash")
 	ht.Insert("eye")
 
-	fmt.Println("----------------------------------------------------")
-	fmt.Println("Hash table after rehash triggered")
-	fmt.Println("----------------------------------------------------")
-	ht.Dump()
-	fmt.Println("----------------------------------------------------")
+	dumper(ht, "Hash table after rehash triggered")
 
 	fmt.Println("Search for \"manipulator\" should move cluster in slots 43-47.")
 
 	ht.Find("manipulator")
 
-	fmt.Println("----------------------------------------------------")
-	fmt.Println("Hash table after cluster 43-47 moved.")
-	fmt.Println("----------------------------------------------------")
-	ht.Dump()
-	fmt.Println("----------------------------------------------------")
+	dumper(ht, "Hash table after cluster 43-47 moved.")
 
 	fmt.Println("Do some finds, inserts and removes")
 
@@ -78,20 +66,12 @@ func testcase2() {
 	ht.Insert("sorceress")
 	ht.Insert("enchantress")
 
-	fmt.Println("----------------------------------------------------")
-	fmt.Println("Hash table after more insertions.")
-	fmt.Println("----------------------------------------------------")
-	ht.Dump()
-	fmt.Println("----------------------------------------------------")
+	dumper(ht, "Hash table after more insertions.")
 
 	fmt.Println("A find on \"ignominious\" + 1 more operation should cause the tables to consolidate down to one table.")
 
 	testFind(ht, "ignominious")
 	testFind(ht, "reaction")
 
-	fmt.Println("----------------------------------------------------")
-	fmt.Println("Hash table after wrap up.")
-	fmt.Println("----------------------------------------------------")
-	ht.Dump()
-	fmt.Println("----------------------------------------------------")
+	dumper(ht, "Hash table after wrap up.")
 }
