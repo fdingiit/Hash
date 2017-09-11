@@ -472,12 +472,12 @@ func (h *Hash) rehash(index int) error {
 		}
 	}
 
-	for start != end+1 {
-		if h.hts[h.now].slots[start] != nil && h.hts[h.now].slots[start].state == OccupiedState {
+	for end != start-1 {
+		if h.hts[h.now].slots[end] != nil && h.hts[h.now].slots[end].state == OccupiedState {
 			var needRehash bool
 
-			_, needRehash = h.hts[h.new].insertAndCheck(h.hts[h.now].slots[start].str)
-			h.hts[h.now].cleanSlot(start)
+			_, needRehash = h.hts[h.new].insertAndCheck(h.hts[h.now].slots[end].str)
+			h.hts[h.now].cleanSlot(end)
 
 			/* a very special case that we need to rehash when rehashing*/
 			if needRehash {
@@ -485,7 +485,7 @@ func (h *Hash) rehash(index int) error {
 			}
 		}
 
-		start = (start + 1) % h.hts[h.now].size
+		end = (end + h.hts[h.now].size - 1) % h.hts[h.now].size
 	}
 
 	/* remove all elements to new hashtable if load factor is less than 0.03 */
@@ -534,11 +534,15 @@ func (h *Hash) specialRehash() error {
 	spec = newHashtable(newSize)
 
 	for _, c := range h.hts[0].slots {
-		spec.insert(c.str)
+		if c != nil && c.str != nil {
+			spec.insert(c.str)
+		}
 	}
 
 	for _, c := range h.hts[1].slots {
-		spec.insert(c.str)
+		if c != nil && c.str != nil {
+			spec.insert(c.str)
+		}
 	}
 
 	h.now, h.new = 0, 1

@@ -10,7 +10,7 @@ func main() {
 		panic(os.Args)
 	}
 
-	funcs := []func(){nil, testcase1, testcase2}
+	funcs := []func(){nil, testcase1, testcase2, testcase3}
 	tc, err := strconv.Atoi(os.Args[1])
 	if err != nil {
 		panic(err)
