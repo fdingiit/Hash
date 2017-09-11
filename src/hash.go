@@ -43,7 +43,7 @@ type content struct {
 }
 
 func (c *content) equal(a *content) bool {
-	return *c.str == *a.str && c.state == a.state && c.hCode == a.hCode
+	return c.state == a.state && c.hCode == a.hCode && *c.str == *a.str
 }
 
 func (c *content) String() string {
@@ -65,36 +65,35 @@ type hashtable struct {
 	size   int
 	factor float32
 
-	/* if we need to rehash, and do not have a cluster
-	 * how many slots we should try to remove at least around a slot
-	 */
-	rehash_min_cnt int
-
 	slots []*content
 }
 
 func newHashtable(size int) (h *hashtable) {
 	h = new(hashtable)
-	h.used, h.size, h.factor = 0, size, 0.0
-	h.rehash_min_cnt = 10
-	h.slots = make([]*content, GetPrime(size))
+	h.used, h.size, h.factor = 0, GetPrime(size), 0.0
+	h.slots = make([]*content, h.size)
 
 	return
 }
 
 func (h *hashtable) getLoadFactor() float32 {
+	/* lazy calculation */
 	h.factor = float32(h.used) / float32(h.size)
 	return h.factor
+}
+
+func (h *hashtable) calcIndex(str string) int {
+	return int(hashCode(str)) % h.size
 }
 
 func (h *hashtable) insert(str *string) (index int, probe int) {
 	var hCode int
 
-	if str == nil {
-		return -1, 0
+	if h.used == h.size {
+		return -1, ProbeSlots
 	}
 
-	if h.used == h.size {
+	if str == nil {
 		return -1, 0
 	}
 
@@ -102,10 +101,12 @@ func (h *hashtable) insert(str *string) (index int, probe int) {
 		return -1, 0
 	}
 
-	hCode = int(hashCode(*str) % uint32(h.size))
+	hCode = h.calcIndex(*str)
 	index = hCode
 
 	for {
+		probe++
+
 		if h.slots[index] == nil || h.slots[index].state == DeletedState {
 			if h.slots[index] == nil {
 				h.slots[index] = new(content)
@@ -119,7 +120,6 @@ func (h *hashtable) insert(str *string) (index int, probe int) {
 			return
 		}
 
-		probe++
 		index = (index + 1) % h.size
 	}
 }
@@ -128,40 +128,7 @@ func (h *hashtable) insertAndCheck(str *string) (index int, needRehash bool) {
 	var probe int
 
 	index, probe = h.insert(str)
-
-	if index == -1 && probe == 0 {
-		return -1, false
-	}
-
-	if probe > ProbeSlots || h.getLoadFactor() >= LoadFactor {
-		return index, true
-	}
-
-	return index, false
-}
-
-func (h *hashtable) remove(index int) {
-	if h.slots == nil {
-		return
-	}
-
-	if index == -1 {
-		return
-	}
-
-	h.used--
-	h.slots[index].state = DeletedState
-
-	return
-}
-
-func (h *hashtable) cleanSlot(index int) {
-	if h.slots == nil {
-		return
-	}
-
-	h.slots[index] = nil
-	h.used--
+	needRehash = probe >= ProbeSlots || h.getLoadFactor() >= LoadFactor
 
 	return
 }
@@ -174,9 +141,11 @@ func (h *hashtable) find(str string) (index int, probe int) {
 		return -1, 0
 	}
 
-	start = int(hashCode(str) % uint32(h.size))
+	start = h.calcIndex(str)
 
 	for index = start; index != start || !again; index = (index + 1) % h.size {
+		probe++
+
 		if !again {
 			again = true
 		}
@@ -184,11 +153,71 @@ func (h *hashtable) find(str string) (index int, probe int) {
 		if h.slots[index] != nil && h.slots[index].state == OccupiedState && *h.slots[index].str == str {
 			return
 		}
-
-		probe++
 	}
 
 	return -1, probe
+}
+
+func (h *hashtable) findAndCheck(str string) (index int, needRehash bool) {
+	var probe int
+
+	index, probe = h.find(str)
+	needRehash = probe >= ProbeSlots || h.getLoadFactor() >= LoadFactor
+
+	return
+}
+
+func (h *hashtable) remove(str string) (index int, probe int) {
+	if h.slots == nil {
+		return -1, 0
+	}
+
+	index, probe = h.find(str)
+
+	if index != -1 {
+		h.slots[index].state = DeletedState
+		h.used--
+	}
+
+	return
+}
+
+func (h *hashtable) removeAndCheck(str string) (index int, needRehash bool) {
+	var probe int
+
+	index, probe = h.remove(str)
+	needRehash = probe >= ProbeSlots || h.getLoadFactor() >= LoadFactor
+
+	return
+}
+
+func (h *hashtable) removeByIndex(index int) int {
+	if h.slots == nil {
+		return -1
+	}
+
+	if h.slots[index] == nil {
+		return -1
+	}
+
+	if h.slots[index].state == OccupiedState {
+		h.slots[index].state = DeletedState
+		h.used--
+		return index
+	}
+
+	return -1
+}
+
+func (h *hashtable) cleanSlot(index int) {
+	if h.slots == nil {
+		return
+	}
+
+	h.slots[index] = nil
+	h.used--
+
+	return
 }
 
 func (h *hashtable) equal(a *hashtable) bool {
@@ -263,10 +292,7 @@ func (h *Hash) Copy(a *Hash) {
 }
 
 func (h *Hash) Insert(str string) error {
-	var dstr *string = new(string)
-
-	*dstr = str
-	return h.insert(dstr)
+	return h.insert(str)
 }
 
 func (h *Hash) Find(str string) (bool, error) {
@@ -299,21 +325,28 @@ func (h *Hash) Remove(str string) (string, error) {
 		return "", nil
 	}
 
-	h.hts[arr].remove(index)
+	index = h.hts[arr].removeByIndex(index)
 
-	return *h.hts[arr].slots[index].str, nil
+	if index != -1 {
+		return *h.hts[arr].slots[index].str, nil
+	}
+
+	return "", nil
 }
 
 func (h *Hash) Dump() {
+	var cnt int = 0
+
 	for i := range h.hts {
 		if h.hts[i] != nil {
-			fmt.Fprintf(os.Stdout, "HashTable #%d: size = %d, tableSize = %d\n", i+1, h.hts[i].used, h.hts[i].size)
+			cnt++
+			fmt.Fprintf(os.Stdout, "HashTable #%d: size = %d, tableSize = %d\n", cnt, h.hts[i].used, h.hts[i].size)
 
 			for j, s := range h.hts[i].slots {
 				if s == nil {
-					fmt.Fprintf(os.Stdout, "H%d[%d] =\n", i+1, j)
+					fmt.Fprintf(os.Stdout, "H%d[%d] =\n", cnt, j)
 				} else {
-					fmt.Fprintf(os.Stdout, "H%d[%d] = %s\n", i+1, j, s.String())
+					fmt.Fprintf(os.Stdout, "H%d[%d] = %s\n", cnt, j, s.String())
 				}
 			}
 		}
@@ -329,13 +362,33 @@ func (h *Hash) find(str string) (int, int, error) {
 
 	/* continue rehashing if needed */
 	if h.rehashing {
-		if err = h.rehash(-1); err != nil {
+		var rehashIndex int
+
+		/* find in new hashtable first */
+		index, _ = h.hts[h.new].find(str)
+
+		if index != -1 {
+			return index, h.new, nil
+		}
+
+		/* find in now hashtable */
+		index, _ = h.hts[h.now].find(str)
+
+		/**
+		 * a special case handler that in order to trigger a rehash
+		 * we *thought* we found the target string
+		 */
+		if index == -1 {
+			rehashIndex = h.hts[h.now].calcIndex(str)
+		} else {
+			rehashIndex = index
+		}
+
+		if err = h.rehash(rehashIndex); err != nil {
 			return -1, -1, err
 		}
 
-		/* find in new hashtable */
-		index, _ = h.hts[h.new].find(str)
-		return index, h.new, nil
+		return index, h.now, nil
 	}
 
 	/* find in now hashtable */
@@ -343,26 +396,33 @@ func (h *Hash) find(str string) (int, int, error) {
 	return index, h.now, nil
 }
 
-func (h *Hash) insert(str *string) error {
+func (h *Hash) insert(str string) error {
 	var index int
 	var needRehash bool
-	var err error
+	var dStr string
+
+	dStr = str
 
 	if h.rehashing {
-		if err = h.rehash(-1); err != nil {
+		var oldIndex int
+		oldIndex = h.hts[h.now].calcIndex(str)
+
+		if err := h.rehash(oldIndex); err != nil {
 			return err
 		}
 
-		_, needRehash = h.hts[h.new].insertAndCheck(str)
+		_, needRehash = h.hts[h.new].insertAndCheck(&dStr)
 
 		/* a very special case that we need to rehash when rehashing*/
 		if needRehash {
 			return h.specialRehash()
 		}
+
+		return nil
 	}
 
 	/* not rehashing, do insert, then check if we need to start a rehash */
-	index, needRehash = h.hts[h.now].insertAndCheck(str)
+	index, needRehash = h.hts[h.now].insertAndCheck(&dStr)
 	if needRehash {
 		h.rehashing = true
 		h.hts[h.new] = newHashtable(4 * h.hts[h.now].used)
@@ -377,11 +437,9 @@ func (h *Hash) insert(str *string) error {
  */
 func (h *Hash) rehash(index int) error {
 	var start, end int
-	var cnt int
-	var needRehash bool
 
 	if !h.rehashing {
-		return errors.New("no in rehashing")
+		return errors.New("not in rehashing")
 	}
 
 	if h.hts == nil {
@@ -393,23 +451,31 @@ func (h *Hash) rehash(index int) error {
 	}
 
 	start = index
-	for h.hts[h.now].slots[start] != nil || cnt < h.hts[h.now].rehash_min_cnt {
-		start = (start - 1) % h.hts[h.now].size
-		cnt++
-	}
+	for {
+		var newStart = (start + h.hts[h.now].size - 1) % h.hts[h.now].size
 
-	cnt = 0
+		if h.hts[h.now].slots[newStart] != nil {
+			start = newStart
+		} else {
+			break
+		}
+	}
 
 	end = index
-	for h.hts[h.now].slots[end] != nil || cnt < h.hts[h.now].rehash_min_cnt {
-		end = (end + 1) % h.hts[h.now].size
-		cnt++
+	for {
+		var newEnd = (end + 1) % h.hts[h.now].size
+
+		if h.hts[h.now].slots[newEnd] != nil {
+			end = newEnd
+		} else {
+			break
+		}
 	}
 
-	for start != end {
-		var needRehash bool
+	for start != end+1 {
+		if h.hts[h.now].slots[start] != nil && h.hts[h.now].slots[start].state == OccupiedState {
+			var needRehash bool
 
-		if h.hts[h.now].slots[start].state == OccupiedState {
 			_, needRehash = h.hts[h.new].insertAndCheck(h.hts[h.now].slots[start].str)
 			h.hts[h.now].cleanSlot(start)
 
@@ -423,7 +489,9 @@ func (h *Hash) rehash(index int) error {
 	}
 
 	/* remove all elements to new hashtable if load factor is less than 0.03 */
-	if h.hts[h.now].factor <= 0.03 {
+	if h.hts[h.now].getLoadFactor() <= 0.03 {
+		var needRehash bool
+
 		for i, c := range h.hts[h.now].slots {
 			if c != nil && c.state == OccupiedState {
 				_, needRehash = h.hts[h.new].insertAndCheck(c.str)
@@ -433,12 +501,8 @@ func (h *Hash) rehash(index int) error {
 				if needRehash {
 					return h.specialRehash()
 				}
-
-				h.rehashNormalFinish()
 			}
 		}
-
-		return nil
 	}
 
 	if h.hts[h.now].used == 0 {
@@ -455,19 +519,19 @@ func (h *Hash) rehashNormalFinish() {
 }
 
 func (h *Hash) specialRehash() error {
-	var newsize int
+	var newSize int
 	var spec *hashtable
 
 	if !h.rehashing {
 		return errors.New("no in rehashing")
 	}
 
-	newsize = 4 * (h.hts[0].used + h.hts[1].used)
-	if newsize > 199999 {
+	newSize = 4 * (h.hts[0].used + h.hts[1].used)
+	if newSize > 199999 {
 		return errors.New("out_of_range")
 	}
 
-	spec = newHashtable(newsize)
+	spec = newHashtable(newSize)
 
 	for _, c := range h.hts[0].slots {
 		spec.insert(c.str)
