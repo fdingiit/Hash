@@ -1,4 +1,4 @@
-package src
+package main
 
 import (
 	"errors"
@@ -109,11 +109,11 @@ func (h *hashtable) insert(str *string) (index int, probe int) {
 		if h.slots[index] == nil || h.slots[index].state == DeletedState {
 			if h.slots[index] == nil {
 				h.slots[index] = new(content)
-				h.slots[index].hCode = hCode
 			}
 
 			h.slots[index].state = OccupiedState
 			h.slots[index].str = str
+			h.slots[index].hCode = hCode
 
 			h.used++
 			return
@@ -234,7 +234,7 @@ func NewHash(n int) (*Hash, error) {
 	if n < 101 {
 		now_size = 101
 	} else if n >= 101 && n <= 199999 {
-		now_size = GetPrime(n)
+		now_size = n
 	} else {
 		return nil, errors.New("out_of_range")
 	}
@@ -270,45 +270,54 @@ func (h *Hash) Insert(str string) error {
 }
 
 func (h *Hash) Find(str string) (bool, error) {
-	var index int
+	var index, arr int
 	var err error
 
-	index, _, err = h.find(str)
+	index, arr, err = h.find(str)
 
-	return index != -1, err
+	if err != nil {
+		return false, err
+	}
+
+	if index == -1 || arr == -1 {
+		return false, nil
+	}
+
+	return true, nil
 }
 
-func (h *Hash) Remove(str string) error {
+func (h *Hash) Remove(str string) (string, error) {
 	var index, arr int
 	var err error
 
 	index, arr, err = h.find(str)
 	if err != nil {
-		return err
+		return "", err
+	}
+
+	if index == -1 || arr == -1 {
+		return "", nil
 	}
 
 	h.hts[arr].remove(index)
-	return nil
+
+	return *h.hts[arr].slots[index].str, nil
 }
 
 func (h *Hash) Dump() {
-	fmt.Println("----------------------------------------------------")
-
 	for i := range h.hts {
 		if h.hts[i] != nil {
-			fmt.Fprintf(os.Stdout, "HashTable #%d: size = %d, tableSize = %d\n", i, h.hts[i].used, h.hts[i].size)
+			fmt.Fprintf(os.Stdout, "HashTable #%d: size = %d, tableSize = %d\n", i+1, h.hts[i].used, h.hts[i].size)
 
 			for j, s := range h.hts[i].slots {
 				if s == nil {
-					fmt.Fprintf(os.Stdout, "H%d[%d] =\n", i, j)
+					fmt.Fprintf(os.Stdout, "H%d[%d] =\n", i+1, j)
 				} else {
-					fmt.Fprintf(os.Stdout, "H%d[%d] = %s\n", i, j, s.String())
+					fmt.Fprintf(os.Stdout, "H%d[%d] = %s\n", i+1, j, s.String())
 				}
 			}
 		}
 	}
-
-	fmt.Println("----------------------------------------------------")
 }
 
 /**********************************

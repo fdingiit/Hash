@@ -1,4 +1,4 @@
-package src
+package main
 
 func binary_search(from []int, want int) int {
 	i, j := 0, PRIMES_COUNT
