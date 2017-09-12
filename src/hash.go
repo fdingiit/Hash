@@ -135,7 +135,6 @@ func (h *hashtable) insertAndCheck(str *string) (index int, needRehash bool) {
 
 func (h *hashtable) find(str string) (index int, probe int) {
 	var start int
-	var again bool = false
 
 	if h.slots == nil {
 		return -1, 0
@@ -143,12 +142,8 @@ func (h *hashtable) find(str string) (index int, probe int) {
 
 	start = h.calcIndex(str)
 
-	for index = start; index != start || !again; index = (index + 1) % h.size {
+	for index = start; probe < ProbeSlots; index = (index + 1) % h.size {
 		probe++
-
-		if !again {
-			again = true
-		}
 
 		if h.slots[index] != nil && h.slots[index].state == OccupiedState && *h.slots[index].str == str {
 			return

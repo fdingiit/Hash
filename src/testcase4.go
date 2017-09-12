@@ -74,7 +74,7 @@ func sanityCheck(ht *Hash, standard map[string]struct{}) {
 	var inSnotT, inTnotS int
 
 	if ht.Size() == len(standard) {
-		fmt.Println("Sets sizes are both")
+		fmt.Println("Sets sizes are both", ht.Size())
 	} else {
 		fmt.Println("Sets sizes are different:", "T size =", ht.Size(), ",", "S.size() =", len(standard))
 	}
